@@ -19,8 +19,11 @@ import {
 import { toast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-
-const STORAGE_KEY = "wanderlast-packages";
+import {
+  readStoredPackages,
+  writeStoredPackages,
+  type StoredPackage,
+} from "@/lib/destinations";
 
 const CATEGORIES = [
   { value: "beach", label: "Beach" },
@@ -56,11 +59,6 @@ const INITIAL_VALUES: FormValues = {
   description: "",
 };
 
-type TravelPackage = FormValues & {
-  id: string;
-  createdAt: string;
-};
-
 function validate(values: FormValues): FieldErrors {
   const errors: FieldErrors = {};
 
@@ -83,16 +81,6 @@ function validate(values: FormValues): FieldErrors {
   }
 
   return errors;
-}
-
-function savePackage(pkg: TravelPackage) {
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    const packages = stored ? (JSON.parse(stored) as TravelPackage[]) : [];
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...packages, pkg]));
-  } catch {
-    // Storage unavailable (private mode etc.) — still treat the submission as done.
-  }
 }
 
 function Field({
@@ -184,13 +172,14 @@ export default function AddDestinationPage() {
         );
       }
 
-      const pkg: TravelPackage = {
+      const pkg: StoredPackage = {
         ...values,
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         createdAt: new Date().toISOString(),
       };
 
-      savePackage(pkg);
+      // Shared writer also notifies same-tab subscribers of the change.
+      writeStoredPackages([...readStoredPackages(), pkg]);
       toast.add({
         title: "Travel package added",
         description: `"${pkg.name}" is now available.`,

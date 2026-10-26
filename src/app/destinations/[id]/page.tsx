@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import {
   DestinationDetailFallback,
   DestinationDetailView,
-} from "@/components/destination-detail-view";
+} from "@/components/destinations/destination-detail-view";
 import {
   fetchBackendDestinations,
   getDestination,

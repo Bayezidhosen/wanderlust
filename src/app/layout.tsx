@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Josefin_Sans, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
+import { Navbar } from "@/components/layout/navbar";
+import { Footer } from "@/components/layout/footer";
 import { Toaster } from "@/components/ui/toast";
 
 const Josefinsans = Josefin_Sans({

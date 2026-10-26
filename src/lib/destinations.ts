@@ -30,8 +30,97 @@ export type StoredPackage = {
 /** Must match the storage key written by /add-destination. */
 export const PACKAGES_STORAGE_KEY = "wanderlast-packages";
 
-/** localStorage key for bookings created from the destination detail page. */
-export const BOOKINGS_STORAGE_KEY = "wanderlast-bookings";
+/**
+ * localStorage key listing curated samples the user deleted. Samples ship
+ * with the bundle, so deleting one writes a tombstone here that the listing
+ * and detail views filter out.
+ */
+export const DELETED_SAMPLES_STORAGE_KEY = "wanderlast-deleted-samples";
+
+/** Booking/departure dates are plain yyyy-mm-dd strings. */
+export const DEPARTURE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A trip the user booked. Stored per-user in MongoDB (see lib/bookings). */
+export type Booking = {
+  id: string;
+  /** Destination/package id the booking was made from. */
+  destinationId: string;
+  name: string;
+  country: string;
+  price: number;
+  duration: string;
+  departureDate: string;
+  imageUrl: string;
+  createdAt: string;
+};
+
+/**
+ * localStorage is written outside React, so writers dispatch a synthetic
+ * `storage` event for `useSyncExternalStore` subscribers in this tab.
+ * Cross-tab writes already fire the real event.
+ */
+export function notifyStorageChanged() {
+  window.dispatchEvent(new Event("storage"));
+}
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "");
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key: string, value: unknown) {
+  window.localStorage.setItem(key, JSON.stringify(value));
+  notifyStorageChanged();
+}
+
+function readList<T>(key: string): T[] {
+  const parsed = readJson<unknown>(key, null);
+  return Array.isArray(parsed) ? (parsed as T[]) : [];
+}
+
+/** Packages the user added or edited from the UI (localStorage backed). */
+export function readStoredPackages(): StoredPackage[] {
+  return readList<StoredPackage>(PACKAGES_STORAGE_KEY);
+}
+
+export function writeStoredPackages(packages: StoredPackage[]) {
+  writeJson(PACKAGES_STORAGE_KEY, packages);
+}
+
+/** Ids of curated samples the user deleted, hidden across all views. */
+export function readDeletedSampleIds(): string[] {
+  return readList<string>(DELETED_SAMPLES_STORAGE_KEY);
+}
+
+export function writeDeletedSampleIds(ids: string[]) {
+  writeJson(DELETED_SAMPLES_STORAGE_KEY, ids);
+}
+
+/** Booking status derived from the departure date. */
+export function getBookingStatus(
+  booking: Booking,
+  now: Date = new Date(),
+): "upcoming" | "completed" {
+  return new Date(`${booking.departureDate}T23:59:59`) >= now
+    ? "upcoming"
+    : "completed";
+}
+
+/** Formats an ISO date (yyyy-mm-dd) in a human readable way. */
+export function formatDepartureDate(date: string): string {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 const BACKEND_URL = "http://localhost:8000";
 

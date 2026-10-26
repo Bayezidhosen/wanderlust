@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserMenu } from "@/components/layout/user-menu";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -44,12 +44,7 @@ export function Navbar() {
         aria-label="Account"
         className="hidden items-center gap-7 md:flex"
       >
-        <Link href="/profile" className="flex items-center gap-1.5">
-          <User size={16} aria-hidden />
-          Profile
-        </Link>
-        <Link href="/login">Login</Link>
-        <Link href="/signup">Sign Up</Link>
+        <UserMenu />
       </nav>
     </header>
   );

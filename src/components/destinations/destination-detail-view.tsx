@@ -10,23 +10,24 @@ import {
   CalendarDaysIcon,
   CheckIcon,
   MapPinIcon,
-  PencilIcon,
   StarIcon,
-  Trash2Icon,
 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
-  BOOKINGS_STORAGE_KEY,
   SAMPLE_DESTINATIONS,
   toStoredDestination,
   type Destination,
 } from "@/lib/destinations";
-import { useStoredPackages } from "@/hooks/use-stored-packages";
-import EditDestination from "./EditDestination";
+import { useDeletedSampleIds, useStoredPackages } from "@/hooks/use-stored-packages";
+import { authClient } from "@/lib/auth-client";
+import { createBookingAction } from "@/app/bookings/actions";
+import { DeleteDestination } from "@/components/destinations/edit-destination";
+import EditDestination from "@/components/destinations/edit-destination";
 
 const FALLBACK_IMAGE = "/images/destinations/bali.jpg";
 const DEFAULT_DEPARTURE_DATE = "2026-05-15";
@@ -98,36 +99,35 @@ function DetailHeroImage({ src, alt }: { src: string; alt: string }) {
 
 function BookingSidebar({ detail }: { detail: DestinationDetail }) {
   const router = useRouter();
+  const { data: session, isPending: isSessionPending } =
+    authClient.useSession();
   const [departureDate, setDepartureDate] = React.useState(
     DEFAULT_DEPARTURE_DATE,
   );
   const [isBooking, setIsBooking] = React.useState(false);
 
-  const handleBook = () => {
+  const handleBook = async (): Promise<void> => {
     if (!departureDate) return;
 
     setIsBooking(true);
-    const booking = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    const result = await createBookingAction({
+      destinationId: detail.id,
       name: detail.name,
       country: detail.country,
       price: detail.price,
       duration: detail.duration,
       departureDate,
-      imageUrl: detail.imageUrl,
-      createdAt: new Date().toISOString(),
-    };
+      imageUrl: detail.imageUrl || "",
+    });
 
-    try {
-      const previous = window.localStorage.getItem(BOOKINGS_STORAGE_KEY);
-      const bookings = previous ? (JSON.parse(previous) as unknown[]) : [];
-      window.localStorage.setItem(
-        BOOKINGS_STORAGE_KEY,
-        JSON.stringify([...bookings, booking]),
-      );
-    } catch (error) {
-      // Storage unavailable (private mode etc.) — still confirm the booking.
-      console.error(error);
+    if (!result.ok) {
+      setIsBooking(false);
+      toast.add({
+        title: "Booking failed",
+        description: result.error,
+        type: "error",
+      });
+      return;
     }
 
     toast.add({
@@ -138,6 +138,80 @@ function BookingSidebar({ detail }: { detail: DestinationDetail }) {
     router.push("/bookings");
   };
 
+  const dateInput = (
+    <Input
+      type="date"
+      aria-label="Select departure date"
+      value={departureDate}
+      onChange={(event) => setDepartureDate(event.target.value)}
+      className="h-11 w-full"
+    />
+  );
+
+  if (isSessionPending || !session?.user) {
+    return (
+      <aside className="h-fit rounded-xl bg-card p-5 shadow-lg shadow-foreground/5 ring-1 ring-foreground/10 lg:sticky lg:top-6">
+        <p className="text-xs text-muted-foreground">Starting from</p>
+        <p className="mt-1 inline-block text-3xl font-semibold text-[#1ba8bc]">
+          ${detail.price.toLocaleString("en-US")}
+        </p>
+        <p className="text-xs text-muted-foreground">per person</p>
+
+        <div className="mt-4 border-t pt-4">
+          {isSessionPending ? (
+            <>
+              {dateInput}
+              <Button disabled className="mt-4 h-11 w-full">
+                <Spinner />
+                Loading…
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Create an account or log in to book this trip and see it in
+                your bookings.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <Link
+                  href="/login"
+                  className={cn(
+                    buttonVariants(),
+                    "h-11 flex-1 bg-[#1ba8bc] text-white hover:bg-[#179cb0]",
+                  )}
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/signup"
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "h-11 flex-1",
+                  )}
+                >
+                  Sign up
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+
+        <ul className="mt-5 space-y-2.5 rounded-lg bg-emerald-50/60 p-4">
+          {detail.perks.map((perk) => (
+            <li key={perk} className="flex items-center gap-2.5 text-sm">
+              <CheckIcon
+                aria-hidden
+                className="size-4 shrink-0 text-emerald-700"
+                strokeWidth={2.5}
+              />
+              {perk}
+            </li>
+          ))}
+        </ul>
+      </aside>
+    );
+  }
+
   return (
     <aside className="h-fit rounded-xl bg-card p-5 shadow-lg shadow-foreground/5 ring-1 ring-foreground/10 lg:sticky lg:top-6">
       <p className="text-xs text-muted-foreground">Starting from</p>
@@ -147,24 +221,15 @@ function BookingSidebar({ detail }: { detail: DestinationDetail }) {
       <p className="text-xs text-muted-foreground">per person</p>
 
       <div className="mt-4 border-t pt-4">
-        <p className="sr-only" id="departure-date-label">
-          Select departure date
-        </p>
-        <Input
-          type="date"
-          aria-labelledby="departure-date-label"
-          value={departureDate}
-          onChange={(event) => setDepartureDate(event.target.value)}
-          className="h-11 w-full"
-        />
+        {dateInput}
 
         <Button
           onClick={handleBook}
           disabled={isBooking || !departureDate}
           className="mt-4 h-11 w-full bg-[#1ba8bc] text-white hover:bg-[#179cb0] has-data-[icon=inline-end]:pr-2"
         >
-          <ArrowRightIcon data-icon="inline-end" />
-          Book Now
+          {isBooking ? <Spinner /> : <ArrowRightIcon data-icon="inline-end" />}
+          {isBooking ? "Booking…" : "Book Now"}
         </Button>
       </div>
 
@@ -192,19 +257,25 @@ export function DestinationDetailView({
   serverDestination: Destination | null;
 }) {
   const storedPackages = useStoredPackages();
+  const deletedSampleIds = useDeletedSampleIds();
 
-  // Backend result wins, then locally added packages, then curated samples.
+  const storedPackage = storedPackages.find((pkg) => pkg.id === destinationId);
+  const deletedSample = deletedSampleIds.includes(destinationId);
+
+  // Locally saved packages (added or edited) win so saved changes show up
+  // immediately; after that the backend result, then curated samples.
+  // Tombstoned samples are deleted locally and resolve to "not found".
   const detail = React.useMemo(() => {
     const base =
-      serverDestination ??
-      storedPackages
-        .map(toStoredDestination)
-        .find((destination) => destination.id === destinationId) ??
-      SAMPLE_DESTINATIONS.find(
-        (destination) => destination.id === destinationId,
-      );
+      (storedPackage ? toStoredDestination(storedPackage) : null) ??
+      (deletedSample
+        ? null
+        : (serverDestination ??
+          SAMPLE_DESTINATIONS.find(
+            (destination) => destination.id === destinationId,
+          )));
     return base ? composeDetail(base) : null;
-  }, [serverDestination, storedPackages, destinationId]);
+  }, [storedPackage, deletedSample, serverDestination, destinationId]);
 
   if (!detail) {
     return (
@@ -242,22 +313,11 @@ export function DestinationDetailView({
         </Link>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/add-destination"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            <PencilIcon data-icon="inline-start" />
-            Edit
-          </Link>
-          <EditDestination/>
-          <Button
-            type="button"
-            variant="outline"
-            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2Icon data-icon="inline-start" />
-            Cancel
-          </Button>
+          <EditDestination
+            destination={detail}
+            departureDate={storedPackage?.departureDate ?? ""}
+          />
+          <DeleteDestination destination={detail} />
         </div>
       </div>
 

@@ -23,7 +23,10 @@ import {
   toStoredDestination,
   type Destination,
 } from "@/lib/destinations";
-import { useStoredPackages } from "@/hooks/use-stored-packages";
+import {
+  useDeletedSampleIds,
+  useStoredPackages,
+} from "@/hooks/use-stored-packages";
 
 const FALLBACK_IMAGE = "/images/destinations/bali.jpg";
 
@@ -179,20 +182,32 @@ export function DestinationsView({
   serverDestinations: Destination[] | null;
 }) {
   const storedPackages = useStoredPackages();
+  const deletedSampleIds = useDeletedSampleIds();
   const [category, setCategory] = React.useState("all");
   const [priceRange, setPriceRange] = React.useState("all");
   const [sortBy, setSortBy] = React.useState("featured");
 
-  // Backend packages win; otherwise show localStorage additions over samples.
+  // Locally saved packages (added or edited) appear first and shadow same-id
+  // entries (e.g. a saved edit of a curated sample). Samples the user deleted
+  // are tombstoned locally and hidden. Backend packages fill in the rest.
   const destinations = React.useMemo(() => {
+    const overrides = new Set(storedPackages.map((pkg) => pkg.id));
+    const visibleSamples = SAMPLE_DESTINATIONS.filter(
+      (sample) =>
+        !overrides.has(sample.id) && !deletedSampleIds.includes(sample.id),
+    );
+
     if (serverDestinations && serverDestinations.length > 0) {
-      return serverDestinations;
+      return [
+        ...storedPackages.map(toStoredDestination),
+        ...serverDestinations.filter(
+          (destination) => !overrides.has(destination.id),
+        ),
+      ];
     }
-    const userOwned = storedPackages.map(toStoredDestination);
-    return userOwned.length > 0
-      ? [...userOwned, ...SAMPLE_DESTINATIONS]
-      : SAMPLE_DESTINATIONS;
-  }, [serverDestinations, storedPackages]);
+
+    return [...storedPackages.map(toStoredDestination), ...visibleSamples];
+  }, [serverDestinations, storedPackages, deletedSampleIds]);
 
   const activePriceRange =
     PRICE_RANGES.find((range) => range.value === priceRange) ?? PRICE_RANGES[0];

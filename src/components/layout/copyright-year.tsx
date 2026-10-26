@@ -4,11 +4,12 @@ import * as React from "react";
 
 export function CopyrightYear() {
   // `new Date()` is unstable during prerender, so compute it after hydration.
-  const [year, setYear] = React.useState<number | null>(null);
-
-  React.useEffect(() => {
-    setYear(new Date().getFullYear());
-  }, []);
+  // `useSyncExternalStore` reads it without setState-in-effect.
+  const year = React.useSyncExternalStore(
+    () => () => {},
+    () => new Date().getFullYear(),
+    () => null,
+  );
 
   return <>{year ?? ""}</>;
 }

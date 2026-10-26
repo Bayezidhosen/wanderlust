@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { NewsletterForm } from "@/components/newsletter-form";
-import { CopyrightYear } from "@/components/copyright-year";
+import { NewsletterForm } from "@/components/layout/newsletter-form";
+import { CopyrightYear } from "@/components/layout/copyright-year";
 
 const QUICK_LINKS = [
   { href: "/", label: "Home" },
